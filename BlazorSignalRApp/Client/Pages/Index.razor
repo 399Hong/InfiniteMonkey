@@ -1,0 +1,116 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.SignalR.Client
+@using BlazorSignalRApp.Shared
+@inject NavigationManager NavigationManager
+@implements IDisposable
+
+<div class="form-group">
+    <label>
+        Target Text:
+        <input @bind="targetR.target" width ="50px" required/>
+    </label>
+</div>
+<div class="form-group">
+    <label>
+        Parallel:
+        <input type="checkbox" @bind="targetR.parallel" />
+    </label>
+</div>
+
+<div class="form-group">
+    <label>
+        Length Discovery:
+        <input type="checkbox" @bind = "discovery" />
+    </label>
+</div>
+<div class="form-group">
+    <label>
+        Monkeys:
+        <input type="number" @bind="tryR.monkeys" min="1" required/>
+    </label>
+</div>
+<div class="form-group">
+    <label>
+        Crossover:
+        <input type="number" @bind="tryR.crossover" min="1" max="100" required/>
+    </label>
+</div>
+<div class="form-group">
+    <label>
+        Mutation:
+        <input type="number" @bind="tryR.mutation" min="1" max = "100" required/>
+    </label>
+</div>
+<div class="form-group">
+    <label>
+        Limit:
+        <input type="number" @checked="tryR.limit" min="0" required/>
+    </label>
+</div>
+
+<button @onclick="Send" disabled="@(!IsConnected)">Send</button>
+
+<hr>
+
+<ul id="messagesList">
+    @foreach (var message in messages)
+    {
+        <li>@message</li>
+    }
+</ul>
+
+@code {
+    private HubConnection hubConnection;
+    private List<string> messages = new List<string>();
+    //private string userInput;
+    //private string messageInput;
+
+    private TargetRequest targetR = new TargetRequest();
+    private TryRequest tryR = new TryRequest();
+    private bool discovery =false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        hubConnection = new HubConnectionBuilder()
+            .WithUrl(NavigationManager.ToAbsoluteUri("/chathub"))
+            .Build();
+        
+        hubConnection.On<TopRequest>("ReceiveMessage", (tr) =>
+        {   
+            // connectionid will be estabilished when actual interation?
+            var id = hubConnection.ConnectionId;
+            //messages.Add(id);
+            messages.Add(tr.ToString());
+            StateHasChanged();
+        });
+
+        await hubConnection.StartAsync();
+    }
+    //invoke hub method in chatHub
+    void Send(){
+        var id = int.Parse(NavigationManager.Uri.Split(":")[2].Split("/")[0]);
+        //messages.Add(targetR.parallel.ToString());
+        //messages.Add(discovery.ToString());
+        targetR.id =id;
+        tryR.parallel = targetR.parallel;
+        tryR.id =id;
+        if(discovery){
+            tryR.length = 0;
+        }else{
+            tryR.length=targetR.target.Length;
+        }
+
+    
+        hubConnection.SendAsync("start", targetR, tryR);
+        
+    }
+    public bool IsConnected =>
+        hubConnection.State == HubConnectionState.Connected;
+        
+    public void Dispose()
+    {
+        _ = hubConnection.DisposeAsync();
+    }
+
+    
+}
